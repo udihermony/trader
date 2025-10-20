@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: alogtrader_postgres
+    environment:
+      POSTGRES_DB: alogtrader
+      POSTGRES_USER: alogtrader
+      POSTGRES_PASSWORD: alogtrader_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alogtrader"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache/Queue
+  redis:
+    image: redis:7-alpine
+    container_name: alogtrader_redis
+    command: redis-server --appendonly yes --requirepass redis_password
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Main Application
+  app:
+    build: .
+    container_name: alogtrader_app
+    environment:
+      # Database
+      DATABASE_URL: postgresql+asyncpg://alogtrader:alogtrader_password@postgres:5432/alogtrader
+      
+      # Redis
+      REDIS_URL: redis://:redis_password@redis:6379/0
+      
+      # Application
+      APP_NAME: AlgoTrader
+      APP_VERSION: 1.0.0
+      DEBUG: "true"
+      ENVIRONMENT: development
+      
+      # Server
+      HOST: 0.0.0.0
+      PORT: 8000
+      
+      # JWT
+      JWT_SECRET_KEY: your-super-secret-jwt-key-change-this-in-production
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
+      
+      # Fyers API (replace with your actual credentials)
+      FYERS_APP_ID: your_fyers_app_id
+      FYERS_SECRET_KEY: your_fyers_secret_key
+      FYERS_REDIRECT_URI: http://localhost:8000/auth/fyers/callback
+      FYERS_BASE_URL: https://api-t1.fyers.in/api/v3
+      
+      # Chartlink Webhook
+      CHARTLINK_WEBHOOK_SECRET: your_chartlink_webhook_secret
+      
+      # Risk Management
+      MAX_POSITION_SIZE: 100000
+      MAX_DAILY_LOSS: 5000
+      MAX_DAILY_TRADES: 50
+      
+      # Monitoring
+      LOG_LEVEL: INFO
+      ENABLE_METRICS: "true"
+      
+      # CORS
+      ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:8080"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy (for production)
+  nginx:
+    image: nginx:alpine
+    container_name: alogtrader_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - app
+    restart: unless-stopped
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: alogtrader_network

@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtualenv
+venv/
+.env
+.env.*
+
+# Byte-compiled / optimized / DLL files
+*.pyc
+*.pyo
+*.pyd
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage*
+.cache/
+.pytest_cache/
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+
+# Docker
+*.pid
+
+# Alembic
+migrations/__pycache__/
+
+# IDE
+.idea/
+.vscode/
+
+# Node (if dashboard added later)
+node_modules/
+build/
+dist/
+
+# Nginx certs
+nginx/ssl/

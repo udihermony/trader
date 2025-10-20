@@ -1,0 +1,109 @@
+# Production Docker Compose for AWS deployment
+version: '3.8'
+
+services:
+  # PostgreSQL Database (AWS RDS)
+  # Note: In production, use AWS RDS instead of local PostgreSQL
+  # This is kept for local development/testing
+  
+  # Redis Cache/Queue (AWS ElastiCache)
+  # Note: In production, use AWS ElastiCache instead of local Redis
+  # This is kept for local development/testing
+
+  # Main Application
+  app:
+    build: .
+    container_name: alogtrader_app_prod
+    environment:
+      # Database (AWS RDS)
+      DATABASE_URL: ${DATABASE_URL}
+      
+      # Redis (AWS ElastiCache)
+      REDIS_URL: ${REDIS_URL}
+      
+      # Application
+      APP_NAME: AlgoTrader
+      APP_VERSION: 1.0.0
+      DEBUG: "false"
+      ENVIRONMENT: production
+      
+      # Server
+      HOST: 0.0.0.0
+      PORT: 8000
+      WORKERS: 4
+      
+      # JWT
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
+      
+      # Fyers API
+      FYERS_APP_ID: ${FYERS_APP_ID}
+      FYERS_SECRET_KEY: ${FYERS_SECRET_KEY}
+      FYERS_REDIRECT_URI: ${FYERS_REDIRECT_URI}
+      FYERS_BASE_URL: https://api-t1.fyers.in/api/v3
+      
+      # Chartlink Webhook
+      CHARTLINK_WEBHOOK_SECRET: ${CHARTLINK_WEBHOOK_SECRET}
+      
+      # AWS Configuration
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_SSM_PREFIX: /alogtrader/
+      
+      # Risk Management
+      MAX_POSITION_SIZE: ${MAX_POSITION_SIZE}
+      MAX_DAILY_LOSS: ${MAX_DAILY_LOSS}
+      MAX_DAILY_TRADES: ${MAX_DAILY_TRADES}
+      
+      # Monitoring
+      LOG_LEVEL: INFO
+      ENABLE_METRICS: "true"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      
+      # CORS
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "awslogs"
+      options:
+        awslogs-group: "/alogtrader/app"
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: "app"
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: alogtrader_nginx_prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - app
+    restart: unless-stopped
+    logging:
+      driver: "awslogs"
+      options:
+        awslogs-group: "/alogtrader/nginx"
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: "nginx"
+
+networks:
+  default:
+    name: alogtrader_prod_network
