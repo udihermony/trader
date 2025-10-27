@@ -117,6 +117,13 @@ class TradeEngine:
                 logger.warning(f"Alert {alert_id} already processed")
                 return True
             
+            # Check if this is a scan alert (informational only, no trade execution)
+            if alert.metadata.get("is_scan_alert"):
+                logger.info(f"Alert {alert_id} is a scan alert, skipping trade processing")
+                alert.mark_as_ignored("Scan alert - informational only")
+                await db.commit()
+                return True
+            
             # Mark alert as processing
             alert.mark_as_processing()
             await db.commit()
